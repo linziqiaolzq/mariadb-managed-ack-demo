@@ -29,6 +29,12 @@ Parameters:
       - 20Gi
       - 40Gi
       - 80Gi
+  ZoneId:
+    Type: String
+    Label:
+      en: Zone ID
+      zh-cn: 可用区
+    AssociationProperty: ALIYUN::ECS::Instance::ZoneId
 Resources:
   ClusterNameSpaceApplication:
     Type: ALIYUN::CS::ClusterApplication
@@ -113,7 +119,7 @@ Resources:
                   memory: ${Memory}
             
               volumeClaimTemplate:
-                storageClassName: alicloud-disk-essd
+                storageClassName: alicloud-disk-essd-mariadb
                 resources:
                   requests:
                     storage: ${Storage}
@@ -121,6 +127,17 @@ Resources:
                   - ReadWriteOnce
               service:
                 type: LoadBalancer
+            
+              affinity:
+                nodeAffinity:
+                  preferredDuringSchedulingIgnoredDuringExecution:
+                  - weight: 100
+                    preference:
+                      matchExpressions:  
+                      - key: topology.kubernetes.io/zone  
+                        operator: In  
+                        values:  
+                        - ${ZoneId}  
             
               myCnfConfigMapKeyRef:
                 name: '${Name}-mariadb-config'
@@ -154,6 +171,25 @@ Resources:
               maxUserConnections: 20
               host: "%"
               retryInterval: 5s
+            ---
+            apiVersion: v1
+            kind: Service
+            metadata:
+              annotations:
+                service.beta.kubernetes.io/alibaba-cloud-loadbalancer-id: ${LoadBalancerId}
+                service.beta.kubernetes.io/alicloud-loadbalancer-force-override-listeners: "true"
+              labels:
+                app: ${Name}
+              name: ${Name}-svc
+            spec:
+              ports:
+              - port: 3306
+                protocol: TCP
+                targetPort: 3306
+              selector:
+                app.kubernetes.io/name: ${Name}
+                app.kubernetes.io/instance: ${Name}
+              type: LoadBalancer
           - Name: mariadb
             RootPassword:
               'Fn::Base64Encode':
@@ -168,9 +204,45 @@ Resources:
               Ref: Memory
             Vcpu:
               Ref: Vcpu
+            ZoneId:
+              Ref: ZoneId
+            LoadBalancerId:
+              Fn::GetAtt:
+                - Slb
+                - LoadBalancerId
       ClusterId:
         Ref: ClusterId
       DefaultNamespace: '{{ serviceInstanceId }}'
+  Slb:
+    Type: ALIYUN::SLB::LoadBalancer
+    Properties:
+      VpcId:
+        Fn::GetAtt:
+          - KubernetesCluster
+          - VpcId
+      VSwitchId:
+        Fn::Jq:
+          - First
+          - Fn::Sub:
+              - '.["${ZoneId}"][]'
+              - ZoneId:
+                  Ref: ZoneId
+          - Fn::Jq:
+              - First
+              - .PodVswitchId
+              - Fn::GetAtt:
+                  - KubernetesCluster
+                  - MetaData
+      LoadBalancerName:
+        Ref: ALIYUN::StackName
+      PayType: PayOnDemand
+      LoadBalancerSpec: slb.s1.small
+      AddressType: intranet
+  KubernetesCluster:
+    Properties:
+      ClusterId:
+        Ref: ClusterId
+    Type: DATASOURCE::CS::KubernetesCluster
 Outputs:
   # 将公网ip做为http返回的地址显示在控制台
   Endpoint:
@@ -202,6 +274,7 @@ Metadata:
         Label:
           en: 资源信息
       - Parameters:
+          - ZoneId
           - ClusterId
         Label:
           en: 集群信息

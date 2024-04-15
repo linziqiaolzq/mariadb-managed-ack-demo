@@ -15,10 +15,13 @@
 本示例创建过程大约持续1分钟，当服务变成待提交后构建成功。
 
 ## 服务使用前提准备
-本示例需要提前准备ack集群，且集群中需要安装mariadb-operator, 推荐使用[基础资源配置服务](https://computenest.console.aliyun.com/service/instance/create/cn-hangzhou?type=user&ServiceId=service-8c2fa279b8ab4ba38414)
-，进行基础资源配置一键安装，可以选择已有ack集群也可以新建ack集群配置基础资源。如果是选择已有ack, 要确保ACK中已经安装阿里云Prometheus插件。
+本示例需要提前准备ack集群，且集群中需要安装mariadb-operator、新建存储卷。推荐使用[基础资源配置服务](https://computenest.console.aliyun.com/service/instance/create/cn-hangzhou?type=user&ServiceId=service-8c2fa279b8ab4ba38414)
+，进行基础资源配置一键安装。
 
-**注意**：一个集群只需配置一次基础资源，且给集群打开删除保护，避免误删除。
+**注意**：
+1. 已有ack场景，ack集群必须通过[基础资源配置服务](https://computenest.console.aliyun.com/service/instance/create/cn-hangzhou?type=user&ServiceId=service-8c2fa279b8ab4ba38414)
+处理集群，否则将部署失败；新建ack场景可通过此服务新建集群并配置基础资源。
+2. 一个集群只需配置一次基础资源，且给集群打开删除保护，避免误删除。
 
 ## 服务架构
 
@@ -30,7 +33,9 @@
 ![architecture.png](architecture.png)
 
 ## 开启Prometheus监控配置
-该服务支持配置Prometheus监控，服务实例部署成功后，服务商及其租户都能在控制台查看监控大盘, 开启Prometheus监控需要以下配置**(每个集群配置一次即可**)
+该服务支持配置Prometheus监控，服务实例部署成功后，服务商及其租户都能在控制台查看监控大盘, 开启Prometheus监控需要以下配置**(每个集群配置一次即可**)。
+如果[基础资源配置服务](https://computenest.console.aliyun.com/service/instance/create/cn-hangzhou?type=user&ServiceId=service-8c2fa279b8ab4ba38414)
+中选择已有ack, 要确保ACK中已经安装阿里云Prometheus插件（前往 集群 - 运维管理 - Prometheus监控开启）。
 ### ACK集群中修改Prometheus的配置【需手动配置】
 1. 到[容器服务控制台](https://cs.console.aliyun.com/)找到自己的集群，修改集群中prom-agent的启动参数，在“arms-prom”的namespace下找到名为“arms-prometheus
    -ack-arms-prometheus”的Deployment，点击"查看yaml"，
@@ -137,6 +142,8 @@ tenant_cloudproductcode: '{{ tenantCloudProductCode }}'
    ![deploye_1.png](deploy_1.png)
 1. 单击部署链接，进入服务实例部署界面，根据界面提示，填写参数完成部署
    ![deploy_2.png](deploy_2.png)
+   网络设置部分为私网打通功能，若开启则可通过私网连接。若创建服务实例时未开启，可在变配服务实例中再次开启（具体见**服务实例变配流程**）。
+   ![deploy_2_5.jpg](deploy2_5.jpg)
 2. 参数填写完成后可以看到对应询价明细，确认参数后点击**下一步：确认订单**
 3. 确认订单完成后同意服务协议并点击**立即创建**
    进入待部署阶段。
@@ -152,6 +159,48 @@ tenant_cloudproductcode: '{{ tenantCloudProductCode }}'
    服务商侧：
    ![prom-7.png](prom-10.png)
 
+## 服务实例变配流程
+### 私网访问变配步骤
+
+说明：
+本服务默认开启支持变配私网连接，用户可以通过变配开启/关闭/新增/删除私网连接；
+0. 前提说明：本变配示例为用户在创建服务实例时未开启私网连接(如下图未选择网络设置)，在服务实例创建完成后需要开启。
+   ![privateLink-1.jpg](privateLink_1.jpg)
+   用户已有服务实例未开启私网连接，网络配置里无内容。
+   ![privateLink-2.jpg](privateLink_2.jpg)
+1. 点击右上角 **修改配置** 进入变配服务实例页面，选择**网络变配**。
+   ![privateLink-3.jpg](privateLink_3.jpg)
+2. 点击**下一步**进入**设置修改参数**，添加私网连接参数。
+   ![privateLink-4.jpg](privateLink_4.jpg)
+   ![privateLink_5.jpg](privateLink_5.jpg)
+   注意：请确保填入的安全组入方向开启3306端口，否则私网访问将无法连接。
+   ![privateLink_6.jpg](privateLink_6.jpg)
+3. 点击**下一步**预览变配内容。
+   ![privateLink_7.jpg](privateLink_7.jpg)
+4. 点击**确定**开始执行变配，等待变配完成。
+   ![privateLink_8.jpg](privateLink_8.jpg)
+5. 变配完成，服务实例状态变为已部署，进入网络配置可见新增的私网连接信息。
+   ![privateLink_9.jpg](privateLink_9.jpg)
+6. 连接检验与使用：（[私网访问帮助文档](https://bp.aliyun.com/detail/186?spm=5176.9843921.content.344.4a604882OYKl3N)），
+   私网访问流程：
+   1. 在服务实例的**网络配置**页签中查看详细信息，连接时可以通过自定义域名（如果在创建服务实例时勾选了的话）、IP地址或者可用区域名进行访问
+      ![privateLink_10.jpg](privateLink_10.jpg)
+   2. 在对应的vsw中创建ECS，创建好后安装mysql客户端
+   ```
+   yum install mysql
+   or
+   apt install mysql-client
+   ```
+   3. 在该ECS中连接MariaDB，下面展示分别用自定义域名、IP与可用区域名进行连接：
+
+      1. 自定义域名方式访问：
+         ![privateLink_11.jpg](privateLink_11.jpg)
+      2. 通过IP访问：
+         ![privateLink_12.jpg](privateLink_12.jpg)
+      3. 通过可用区域名访问：
+         ![privateLink_13.jpg](privateLink_13.jpg)
+
+   私网访问变配还支持其他操作，如关闭/新增/删除私网访问等，后续若需要执行前述操作，同样可以通过修改配置-网络变配完成。
 
 ## 售卖配置
 当前服务因为没有配置售卖链路，所以用户侧部署时候需要服务商的二次确认，当服务上架到阿里云云市场后，就可以不经过服务商的二次确认就可以完成部署。

@@ -67,7 +67,27 @@ Service:
       - Name: mariadb
         AllowedRegions:
           - ${RegionId}
+    NetworkMetadata:
+      EnablePrivateVpcConnection: true
+      EnableReversePrivateVpcConnection: false
+      PrivateVpcConnectionMode: PrivateLink
+      PrivateVpcConnectionType: DynamicTemplate
+      PrivateVpcConnections:
+        - Name: default
+          PrivateZoneName: ${ServiceInstanceId}.computenest.aliyuncs.com
+          NetworkDynamicTemplateSource: TEMPLATE_RESOURCE
+          NetworkDynamicTemplateResourceType: SLB
+          DynamicTemplateParameterKey: Slb
+          Payer: Endpoint
   OperationMetadata:
+    ModifyParametersConfig:
+      - TemplateName: mariadb
+        Operation:
+          - Name: 网络变配
+            Description: 网络变配支持VPC私网变更和自定义域名变更
+            Type: Custom
+            EnablePrivateVpcConnection: true
+            EnablePrivateZoneName: true
     PrometheusIntegrationType: cn-mariadb
     PrometheusConfigMap:
       mariadb:
